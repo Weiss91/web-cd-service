@@ -1,0 +1,54 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@io_bazel_rules_docker//go:image.bzl", "go_image")
+load("@io_bazel_rules_docker//container:container.bzl", "container_image")
+load("@io_bazel_rules_docker//container:container.bzl", "container_push")
+
+go_library(
+    name = "bazelwebapi_lib",
+    srcs = [
+        "config.go",
+        "executebazel.go",
+        "git.go",
+        "main.go",
+        "server.go",
+        "state.go",
+    ],
+    importpath = "github.com/Weiss91/web-cd-service/bazelwebapi",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_go_git_go_git_v5//:go-git",
+        "@com_github_go_git_go_git_v5//plumbing",
+        "@com_github_go_git_go_git_v5//plumbing/transport/http",
+    ],
+)
+
+go_binary(
+    name = "bazelwebapi",
+    embed = [":bazelwebapi_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_image(
+    name = "bazel_web_api",
+    base = "@bazel_runner_base//image",
+    embed = [":bazelwebapi_lib"],
+    pure = "on",
+    visibility = ["//visibility:public"],
+)
+
+container_image(
+    name = "bazel_web_api_image",
+    base = ":bazel_web_api",
+    ports = ["8088"],
+    repository = "localhost:5000",
+    stamp = True,
+)
+
+container_push(
+    name = "push_image",
+    format = "Docker",
+    image = ":bazel_web_api_image",
+    registry = "localhost:5000",
+    repository = "bazelwebapi",
+    tag = "1.0.0",
+)
