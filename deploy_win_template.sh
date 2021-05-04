@@ -18,6 +18,6 @@ EXPOSE 8088
 EOS
 
 docker build -t ${REPOSITORY}/web-cd-service:${VERSION} .
-docker login
+docker login ${REPOSITORY}
 docker push ${REPOSITORY}/web-cd-service:${VERSION}
-docker logout
+docker logout ${REPOSITORY}
