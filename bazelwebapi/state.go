@@ -30,6 +30,7 @@ func (i STATE) ToString() string {
 }
 
 type status struct {
+	id      string
 	start   time.Time
 	end     time.Time
 	updated time.Time

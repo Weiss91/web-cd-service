@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"text/template"
 )
 
 type config struct {
@@ -13,6 +14,12 @@ type config struct {
 	Registry       string
 	DockerConfPath string
 	Auth           string
+}
+
+type dockerconf struct {
+	Registry       string
+	Auth           string
+	DockerConfPath string
 }
 
 func loadconfig() (*config, error) {
@@ -36,22 +43,6 @@ func loadconfig() (*config, error) {
 		return nil, fmt.Errorf("GIT_DATA_PATH not set")
 	}
 
-	if registry == "" {
-		return nil, fmt.Errorf("REGISTRY not set")
-	}
-
-	if registryUser == "" {
-		return nil, fmt.Errorf("REGISTRY_USER not set")
-	}
-
-	if registryPw == "" {
-		return nil, fmt.Errorf("REGISTRY_PASSWORD not set")
-	}
-
-	if dockerConfPath == "" {
-		return nil, fmt.Errorf("DOCKER_CONF_PATH not set")
-	}
-
 	return &config{
 		GitUser:        gitUser,
 		GitPassword:    gitPw,
@@ -61,3 +52,34 @@ func loadconfig() (*config, error) {
 		Auth:           base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", registryUser, registryPw))),
 	}, nil
 }
+
+func (c *dockerconf) createDockerConf() error {
+	tmpl, err := template.New("dockerconf").Parse(dockerconftmpl)
+	if err != nil {
+		return err
+	}
+	f, err := os.OpenFile(c.DockerConfPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	err = tmpl.Execute(f, c)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *dockerconf) removeDockerConf() error {
+	return os.Remove(c.DockerConfPath)
+}
+
+const dockerconftmpl = `
+{
+	"auths": {
+		"{{.Registry}}": {
+			"auth": "{{.Auth}}"
+		}
+	}
+}
+`
