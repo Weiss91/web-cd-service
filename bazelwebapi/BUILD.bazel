@@ -11,6 +11,7 @@ go_library(
         "git.go",
         "main.go",
         "middleware.go",
+        "prio.go",
         "routes.go",
         "server.go",
         "state.go",

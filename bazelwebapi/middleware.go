@@ -6,7 +6,7 @@ import (
 
 func (s *server) checkApiKeyExec(next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !isValidKey(w, r, s.c.ApiKeyExec) {
+		if !isValidKey(w, r, s.c.apiKeyExec) {
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -15,7 +15,7 @@ func (s *server) checkApiKeyExec(next http.HandlerFunc) http.Handler {
 
 func (s *server) checkApiKeyRead(next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !isValidKey(w, r, s.c.ApiKeyRead) {
+		if !isValidKey(w, r, s.c.apiKeyRead) {
 			return
 		}
 		next.ServeHTTP(w, r)

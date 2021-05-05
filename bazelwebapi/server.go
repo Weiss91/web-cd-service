@@ -4,30 +4,112 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 )
 
+type tasks struct {
+	sync.Mutex
+	tasks map[string]*task
+}
+
+func newTasks() *tasks {
+	return &tasks{
+		tasks: make(map[string]*task),
+	}
+}
+
+func (ts *tasks) add(t *task) {
+	ts.Lock()
+	defer ts.Unlock()
+	ts.tasks[t.id] = t
+}
+
+func (ts *tasks) find(id string) task {
+	ts.Lock()
+	defer ts.Unlock()
+	val, ok := ts.tasks[id]
+	if !ok {
+		return task{}
+	}
+	return *val
+}
+
+func (ts *tasks) delete(id string) {
+	ts.Lock()
+	defer ts.Unlock()
+	delete(ts.tasks, id)
+}
+
+type queue struct {
+	sync.Mutex
+	tasks []*task
+}
+
+func newQueue() *queue {
+	return &queue{
+		tasks: []*task{},
+	}
+}
+
+func (q *queue) next() (t *task) {
+	q.Lock()
+	defer q.Unlock()
+	if len(q.tasks) > 0 {
+		t = q.tasks[0]
+		q.tasks = q.tasks[1:]
+	}
+	return t
+}
+
+func (q *queue) add(t *task) {
+	q.Lock()
+	defer q.Unlock()
+
+	q.tasks = append(q.tasks, t)
+
+	// sort for 1. prio asc and 2. start time asc
+	sort.Slice(q.tasks, func(i, j int) bool {
+		if q.tasks[i].Prio < q.tasks[j].Prio {
+			return true
+		}
+		if q.tasks[i].Prio > q.tasks[j].Prio {
+			return false
+		}
+		return q.tasks[i].start.Before(q.tasks[j].start)
+	})
+}
+
 type server struct {
 	sync.Mutex
 	c           *config
-	statusMap   map[string]*status
+	history     *tasks
+	activeTasks *tasks
+	queue       *queue
 	runningTask string //uuid of running task
 }
 
 type task struct {
-	Remote           string
-	Commit           string
-	Target           string
-	BazelCmd         string // can be e.g. build, test, run
-	Prio             int    // for later use priorisation of builds
-	Registry         string
-	RegistryUser     string
-	RegistryPassword string
+	Remote   string
+	Commit   string
+	Target   string
+	BazelCmd string // can be e.g. build, test, run
+	Prio     string // for priorisation of tasks
+	Registry string
+	output   string
+	id       string
+	start    time.Time
+	end      time.Time
+	updated  time.Time
+	state    STATE
+	err      string
+	prio     PRIO
+	// triggeredBy string/enum later when gitlab webhook or other sources are implemented
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
@@ -51,6 +133,7 @@ func getTask(r *http.Request) (*task, error) {
 		return nil, fmt.Errorf(err.Error())
 	}
 
+	t.prio = newPrio(t.Prio)
 	return t, nil
 }
 
@@ -66,50 +149,31 @@ func (s *server) ExecuteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Repo: %s;\nCommit: %s\nExecuting Target: %s\nwith command: %s\n", t.Remote, t.Commit, t.Target, t.BazelCmd)
 	id := uuid.NewString()
 	now := time.Now()
-	s.statusMap[id] = &status{
-		id:      id,
-		start:   now,
-		updated: now,
-		state:   WAITING,
-	}
+	t.id = id
+	t.start = now
+	t.updated = now
+	t.state = WAITING
 
-	for s.runningTask != "" {
-		log.Println("waiting for execution of task ", id)
-		time.Sleep(time.Second * 5)
-	}
+	s.activeTasks.add(t)
+	s.queue.add(t)
 
-	s.runningTask = id
-	// release running task in any case to not deadlock server
-	defer s.releaseTask()
-	s.statusMap[id].updated = time.Now()
-	s.statusMap[id].state = RUNNING
-
-	result, err := s.executeBazel(t)
-	if err != nil {
-		msg := ""
-		if result != nil && result.Len() > 0 {
-			msg = fmt.Sprintf("error: %s\n\nbazel output:\n%s", err.Error(), result.String())
-		} else {
-			msg = fmt.Sprintf("error: %s", err.Error())
-		}
-		writeError(w, http.StatusInternalServerError, msg)
-		return
-	}
-	if result != nil && result.Len() > 0 {
-		w.Write(result.Bytes())
-	}
+	w.Write([]byte(fmt.Sprintf("{\"taskID\": \"%s\"}", id)))
 }
 
-func (s *server) releaseTask() {
-	if s.statusMap != nil && s.statusMap[s.runningTask] != nil {
-		log.Printf("Task %s done", s.runningTask)
-		s.statusMap[s.runningTask].state = DONE
-		now := time.Now()
-		s.statusMap[s.runningTask].end = now
-		s.statusMap[s.runningTask].updated = now
+func (s *server) GetStateOfTask(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeStatusNotAllowed(w)
+		return
 	}
-	s.runningTask = ""
+	pathparts := strings.Split(r.URL.Path, "/")
+	uuid := pathparts[len(pathparts)-1]
+
+	t := s.activeTasks.find(uuid)
+	if t.id == "" {
+		t = s.history.find(uuid)
+	}
+
+	w.Write([]byte(fmt.Sprintf("{\"state\": \"%s\"}", t.state.ToString())))
 }

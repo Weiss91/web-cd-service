@@ -2,32 +2,23 @@ package main
 
 import (
 	"bytes"
-	"encoding/base64"
-	"fmt"
 	"os/exec"
 )
 
-func (s *server) executeBazel(task *task) (*bytes.Buffer, error) {
+func (s *server) executeBazel(task *task) error {
 	err := s.prepareGitRepo(task)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	// create docker conf file before needed
-	dc := &dockerconf{}
-	if task.BazelCmd == "run" {
-		if task.Registry != "" {
-			dc.DockerConfPath = s.c.DockerConfPath
-			dc.Registry = task.Registry
-			dc.Auth = base64.StdEncoding.EncodeToString(
-				[]byte(fmt.Sprintf("%s:%s", task.RegistryUser, task.RegistryPassword)))
-		}
-		err = dc.createDockerConf()
+	// create only registry when is set in task
+	if task.Registry != "" {
+		err = s.c.dockerConf.createDockerConf(task.Registry)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		// remove it in any case after executing this function
-		defer dc.removeDockerConf()
+		defer s.c.dockerConf.removeDockerConf()
 	}
 
 	cmd := exec.Command("bazelisk", task.BazelCmd, task.Target)
@@ -40,11 +31,14 @@ func (s *server) executeBazel(task *task) (*bytes.Buffer, error) {
 
 	err = cmd.Run()
 	if err != nil {
-		return &bufStdErr, err
+		task.err = err.Error()
+		task.output = bufStdErr.String()
+		return nil
 	}
 
 	// append outputs
 	bufStdErr.Write([]byte("\nStdout:\n"))
 	bufStdErr.Write(bufStdOut.Bytes())
-	return &bufStdErr, nil
+	task.output = bufStdErr.String()
+	return nil
 }
