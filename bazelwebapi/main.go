@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 )
@@ -16,6 +17,6 @@ func main() {
 		c:         c,
 	}
 
-	log.Println("WebAPI running on port 8088")
-	log.Fatal(http.ListenAndServe(":8088", s.routes()))
+	log.Println("WebAPI running on port ", s.c.ServerPort)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", s.c.ServerPort), s.routes()))
 }

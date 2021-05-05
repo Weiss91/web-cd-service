@@ -14,6 +14,7 @@ type config struct {
 	Registry       string
 	ApiKeyExec     string
 	ApiKeyRead     string
+	ServerPort     string
 	DockerConfPath string
 	Auth           string
 }
@@ -34,6 +35,11 @@ func loadconfig() (*config, error) {
 	dockerConfPath := os.Getenv("DOCKER_CONF_PATH")
 	apiKeyRead := os.Getenv("API_KEY_READ")
 	apiKeyExec := os.Getenv("API_KEY_EXEC")
+	serverPort := os.Getenv("SERVER_PORT")
+
+	if serverPort == "" {
+		serverPort = "8088"
+	}
 
 	if gitUser == "" {
 		return nil, fmt.Errorf("GIT_USER not set")
@@ -51,6 +57,7 @@ func loadconfig() (*config, error) {
 		GitUser:        gitUser,
 		GitPassword:    gitPw,
 		GitDataPath:    gitDataPath,
+		ServerPort:     serverPort,
 		ApiKeyRead:     apiKeyRead,
 		ApiKeyExec:     apiKeyExec,
 		Registry:       registry,

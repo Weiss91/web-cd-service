@@ -15,5 +15,6 @@ export REGISTRY_PASSWORD="registry_password"
 export DOCKER_CONF_PATH="./config.json"
 export API_KEY_READ="READAPIKEY"
 export API_KEY_EXEC="EXECAPIKEY"
+export SERVER_PORT="8088"
 
 bazelisk.exe run bazelwebapi:bazelwebapi
