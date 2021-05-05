@@ -89,11 +89,18 @@ func (s *server) ExecuteTask(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.executeBazel(t)
 	if err != nil {
-		msg := fmt.Sprintf("error: %s\n\nbazel output:\n%s", err.Error(), result.String())
+		msg := ""
+		if result != nil && result.Len() > 0 {
+			msg = fmt.Sprintf("error: %s\n\nbazel output:\n%s", err.Error(), result.String())
+		} else {
+			msg = fmt.Sprintf("error: %s", err.Error())
+		}
 		writeError(w, http.StatusInternalServerError, msg)
 		return
 	}
-	w.Write(result.Bytes())
+	if result != nil && result.Len() > 0 {
+		w.Write(result.Bytes())
+	}
 }
 
 func (s *server) releaseTask() {
