@@ -45,14 +45,17 @@ func (s *server) prepareGitRepo(task *task) error {
 
 	err = w.Pull(&git.PullOptions{Auth: s.getAuth(), Force: true})
 	if err != nil {
-		if err != git.NoErrAlreadyUpToDate {
+		if err != git.NoErrAlreadyUpToDate && err != git.ErrNonFastForwardUpdate {
 			return err
 		}
 	}
 
-	w.Checkout(&git.CheckoutOptions{
+	err = w.Checkout(&git.CheckoutOptions{
 		Hash:  plumbing.NewHash(task.Commit),
 		Force: true,
 	})
+	if err != nil {
+		return err
+	}
 	return nil
 }
