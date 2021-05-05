@@ -13,5 +13,7 @@ export REGISTRY="registry"
 export REGISTRY_USER="registry_user"
 export REGISTRY_PASSWORD="registry_password"
 export DOCKER_CONF_PATH="./config.json"
+export API_KEY_READ="READAPIKEY"
+export API_KEY_EXEC="EXECAPIKEY"
 
 bazelisk.exe run bazelwebapi:bazelwebapi

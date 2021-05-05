@@ -16,10 +16,6 @@ func main() {
 		c:         c,
 	}
 
-	mux := http.NewServeMux()
-	// should publish an image. Target required
-	mux.HandleFunc("/execute/task", s.ExecuteTask)
-
 	log.Println("WebAPI running on port 8088")
-	log.Fatal(http.ListenAndServe(":8088", mux))
+	log.Fatal(http.ListenAndServe(":8088", s.routes()))
 }

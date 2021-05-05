@@ -12,6 +12,8 @@ type config struct {
 	GitPassword    string
 	GitDataPath    string
 	Registry       string
+	ApiKeyExec     string
+	ApiKeyRead     string
 	DockerConfPath string
 	Auth           string
 }
@@ -30,6 +32,8 @@ func loadconfig() (*config, error) {
 	registryUser := os.Getenv("REGISTRY_USER")
 	registryPw := os.Getenv("REGISTRY_PASSWORD")
 	dockerConfPath := os.Getenv("DOCKER_CONF_PATH")
+	apiKeyRead := os.Getenv("API_KEY_READ")
+	apiKeyExec := os.Getenv("API_KEY_EXEC")
 
 	if gitUser == "" {
 		return nil, fmt.Errorf("GIT_USER not set")
@@ -47,6 +51,8 @@ func loadconfig() (*config, error) {
 		GitUser:        gitUser,
 		GitPassword:    gitPw,
 		GitDataPath:    gitDataPath,
+		ApiKeyRead:     apiKeyRead,
+		ApiKeyExec:     apiKeyExec,
 		Registry:       registry,
 		DockerConfPath: dockerConfPath,
 		Auth:           base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", registryUser, registryPw))),

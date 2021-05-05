@@ -10,6 +10,8 @@ go_library(
         "executebazel.go",
         "git.go",
         "main.go",
+        "middleware.go",
+        "routes.go",
         "server.go",
         "state.go",
     ],
