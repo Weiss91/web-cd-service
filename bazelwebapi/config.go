@@ -2,43 +2,56 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"text/template"
 )
 
 type config struct {
-	GitUser        string
-	GitPassword    string
-	GitDataPath    string
-	Registry       string
-	ApiKeyExec     string
-	ApiKeyRead     string
-	ServerPort     string
-	DockerConfPath string
-	Auth           string
+	gitConf    *gitConf
+	dockerConf *dockerConf
+	apiKeyExec string
+	apiKeyRead string
+	serverPort string
+	auth       string
 }
 
-type dockerconf struct {
-	Registry       string
-	Auth           string
-	DockerConfPath string
+type gitConf struct {
+	User     string
+	Password string
+	Path     string
+}
+
+type dockerConf struct {
+	Path       string               `json:"path"`
+	Registries map[string]*registry `json:"registries"`
+}
+
+type registry struct {
+	Registry string
+	User     string `json:"user"`
+	Password string `json:"password"`
+	Auth     string `json:"auth"` //generated when not set
 }
 
 func loadconfig() (*config, error) {
 	gitUser := os.Getenv("GIT_USER")
 	gitPw := os.Getenv("GIT_PASSWORD")
-	gitDataPath := os.Getenv("GIT_DATA_PATH")
-	registry := os.Getenv("REGISTRY")
-	registryUser := os.Getenv("REGISTRY_USER")
-	registryPw := os.Getenv("REGISTRY_PASSWORD")
-	dockerConfPath := os.Getenv("DOCKER_CONF_PATH")
+	gitPath := os.Getenv("GIT_DATA_PATH") // defaults to /git
+	docker := os.Getenv("DOCKER_CONF")    // if dockerConf.Path not set it will default to /git/docker
+
 	apiKeyRead := os.Getenv("API_KEY_READ")
 	apiKeyExec := os.Getenv("API_KEY_EXEC")
 	serverPort := os.Getenv("SERVER_PORT")
 
 	if serverPort == "" {
 		serverPort = "8088"
+	}
+
+	if gitPath == "" {
+		gitPath = "/git"
 	}
 
 	if gitUser == "" {
@@ -49,42 +62,70 @@ func loadconfig() (*config, error) {
 		return nil, fmt.Errorf("GIT_PASSWORD not set")
 	}
 
-	if gitDataPath == "" {
-		return nil, fmt.Errorf("GIT_DATA_PATH not set")
+	if docker == "" {
+		log.Println("WARNING: no registry information set. Images will not be pushed")
+	}
+
+	dc := &dockerConf{}
+	if docker != "" {
+		err := json.Unmarshal([]byte(docker), dc)
+		if err != nil {
+			return nil, err
+		}
+
+		if dc.Path == "" {
+			dc.Path = "/git/docker"
+		}
+
+		for k, v := range dc.Registries {
+			if v.Auth == "" {
+				v.Auth = base64.StdEncoding.EncodeToString(
+					[]byte(fmt.Sprintf("%s:%s", v.User, v.Password)))
+			}
+			if v.Registry == "" {
+				v.Registry = k
+			}
+		}
 	}
 
 	return &config{
-		GitUser:        gitUser,
-		GitPassword:    gitPw,
-		GitDataPath:    gitDataPath,
-		ServerPort:     serverPort,
-		ApiKeyRead:     apiKeyRead,
-		ApiKeyExec:     apiKeyExec,
-		Registry:       registry,
-		DockerConfPath: dockerConfPath,
-		Auth:           base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", registryUser, registryPw))),
+		gitConf: &gitConf{
+			User:     gitUser,
+			Password: gitPw,
+			Path:     gitPath,
+		},
+		serverPort: serverPort,
+		apiKeyRead: apiKeyRead,
+		apiKeyExec: apiKeyExec,
+		dockerConf: dc,
 	}, nil
 }
 
-func (c *dockerconf) createDockerConf() error {
+func (c *dockerConf) createDockerConf(registry string) error {
+	if len(c.Registries) == 0 {
+		return fmt.Errorf("no registry information set on server")
+	}
+	if _, ok := c.Registries[registry]; !ok {
+		return fmt.Errorf("no registry information found on server for registry %s", registry)
+	}
 	tmpl, err := template.New("dockerconf").Parse(dockerconftmpl)
 	if err != nil {
 		return err
 	}
-	f, err := os.OpenFile(c.DockerConfPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	f, err := os.OpenFile(c.Path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	err = tmpl.Execute(f, c)
+	err = tmpl.Execute(f, c.Registries[registry])
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *dockerconf) removeDockerConf() error {
-	return os.Remove(c.DockerConfPath)
+func (c *dockerConf) removeDockerConf() error {
+	return os.Remove(c.Path)
 }
 
 const dockerconftmpl = `

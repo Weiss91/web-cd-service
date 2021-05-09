@@ -11,14 +11,14 @@ import (
 
 func (s *server) getAuth() *http.BasicAuth {
 	return &http.BasicAuth{
-		Username: s.c.GitUser,
-		Password: s.c.GitPassword,
+		Username: s.c.gitConf.User,
+		Password: s.c.gitConf.Password,
 	}
 }
 
 func (s *server) gitPath(task *task) string {
 	pathparts := strings.Split(task.Remote, "/")
-	return fmt.Sprintf("%s/%s", s.c.GitDataPath, pathparts[len(pathparts)-1])
+	return fmt.Sprintf("%s/%s", s.c.gitConf.Path, pathparts[len(pathparts)-1])
 }
 
 func (s *server) prepareGitRepo(task *task) error {

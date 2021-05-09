@@ -1,33 +1,19 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"log"
+	"bytes"
 	"net/http"
+	"os/exec"
 	"sync"
-	"time"
-
-	"github.com/google/uuid"
 )
 
 type server struct {
 	sync.Mutex
 	c           *config
-	statusMap   map[string]*status
+	history     *tasks
+	activeTasks *tasks
+	queue       *queue
 	runningTask string //uuid of running task
-}
-
-type task struct {
-	Remote           string
-	Commit           string
-	Target           string
-	BazelCmd         string // can be e.g. build, test, run
-	Prio             int    // for later use priorisation of builds
-	Registry         string
-	RegistryUser     string
-	RegistryPassword string
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
@@ -40,76 +26,40 @@ func writeStatusNotAllowed(w http.ResponseWriter) {
 	w.Write([]byte(http.StatusText(http.StatusMethodNotAllowed)))
 }
 
-func getTask(r *http.Request) (*task, error) {
-	b, err := ioutil.ReadAll(r.Body)
+func (s *server) executeBazel(task *task) error {
+	err := s.prepareGitRepo(task)
 	if err != nil {
-		return nil, fmt.Errorf("could not read request body")
-	}
-	t := &task{}
-	err = json.Unmarshal(b, t)
-	if err != nil {
-		return nil, fmt.Errorf(err.Error())
+		return err
 	}
 
-	return t, nil
-}
-
-func (s *server) ExecuteTask(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeStatusNotAllowed(w)
-		return
-	}
-
-	t, err := getTask(r)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	log.Printf("Repo: %s;\nCommit: %s\nExecuting Target: %s\nwith command: %s\n", t.Remote, t.Commit, t.Target, t.BazelCmd)
-	id := uuid.NewString()
-	now := time.Now()
-	s.statusMap[id] = &status{
-		id:      id,
-		start:   now,
-		updated: now,
-		state:   WAITING,
-	}
-
-	for s.runningTask != "" {
-		log.Println("waiting for execution of task ", id)
-		time.Sleep(time.Second * 5)
-	}
-
-	s.runningTask = id
-	// release running task in any case to not deadlock server
-	defer s.releaseTask()
-	s.statusMap[id].updated = time.Now()
-	s.statusMap[id].state = RUNNING
-
-	result, err := s.executeBazel(t)
-	if err != nil {
-		msg := ""
-		if result != nil && result.Len() > 0 {
-			msg = fmt.Sprintf("error: %s\n\nbazel output:\n%s", err.Error(), result.String())
-		} else {
-			msg = fmt.Sprintf("error: %s", err.Error())
+	// create only registry when is set in task
+	if task.Registry != "" {
+		err = s.c.dockerConf.createDockerConf(task.Registry)
+		if err != nil {
+			return err
 		}
-		writeError(w, http.StatusInternalServerError, msg)
-		return
+		// remove it in any case after executing this function
+		defer s.c.dockerConf.removeDockerConf()
 	}
-	if result != nil && result.Len() > 0 {
-		w.Write(result.Bytes())
-	}
-}
 
-func (s *server) releaseTask() {
-	if s.statusMap != nil && s.statusMap[s.runningTask] != nil {
-		log.Printf("Task %s done", s.runningTask)
-		s.statusMap[s.runningTask].state = DONE
-		now := time.Now()
-		s.statusMap[s.runningTask].end = now
-		s.statusMap[s.runningTask].updated = now
+	cmd := exec.Command("bazelisk", task.BazelCmd, task.Target)
+	cmd.Dir = s.gitPath(task)
+
+	bufStdErr := bytes.Buffer{}
+	bufStdOut := bytes.Buffer{}
+	cmd.Stderr = &bufStdErr
+	cmd.Stdout = &bufStdOut
+
+	err = cmd.Run()
+	if err != nil {
+		task.Err = err.Error()
+		task.Output = bufStdErr.String()
+		return nil
 	}
-	s.runningTask = ""
+
+	// append outputs
+	bufStdErr.Write([]byte("\nStdout:\n"))
+	bufStdErr.Write(bufStdOut.Bytes())
+	task.Output = bufStdErr.String()
+	return nil
 }

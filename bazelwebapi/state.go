@@ -1,7 +1,5 @@
 package main
 
-import "time"
-
 type STATE int
 
 const (
@@ -27,12 +25,4 @@ func (i STATE) ToString() string {
 	default:
 		return "not implemented"
 	}
-}
-
-type status struct {
-	id      string
-	start   time.Time
-	end     time.Time
-	updated time.Time
-	state   STATE
 }
