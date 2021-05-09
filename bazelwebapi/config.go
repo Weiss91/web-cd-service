@@ -10,12 +10,16 @@ import (
 )
 
 type config struct {
-	gitConf    *gitConf
-	dockerConf *dockerConf
-	apiKeyExec string
-	apiKeyRead string
-	serverPort string
-	auth       string
+	gitConf     *gitConf
+	dockerConf  *dockerConf
+	storageConf *storageConf
+	apiKeyExec  string
+	apiKeyRead  string
+	serverPort  string
+}
+
+type storageConf struct {
+	Path string
 }
 
 type gitConf struct {
@@ -40,7 +44,10 @@ func loadconfig() (*config, error) {
 	gitUser := os.Getenv("GIT_USER")
 	gitPw := os.Getenv("GIT_PASSWORD")
 	gitPath := os.Getenv("GIT_DATA_PATH") // defaults to /git
-	docker := os.Getenv("DOCKER_CONF")    // if dockerConf.Path not set it will default to /git/docker
+	// if dockerConf.Path not set it will default to /git/docker
+	docker := os.Getenv("DOCKER_CONF")
+	// defaults to /storage
+	storagePath := os.Getenv("STORAGE_PATH")
 
 	apiKeyRead := os.Getenv("API_KEY_READ")
 	apiKeyExec := os.Getenv("API_KEY_EXEC")
@@ -52,6 +59,7 @@ func loadconfig() (*config, error) {
 
 	if gitPath == "" {
 		gitPath = "/git"
+		log.Println("default git path to /git")
 	}
 
 	if gitUser == "" {
@@ -64,6 +72,11 @@ func loadconfig() (*config, error) {
 
 	if docker == "" {
 		log.Println("WARNING: no registry information set. Images will not be pushed")
+	}
+
+	if storagePath == "" {
+		log.Println("default storage path to /storage")
+		storagePath = "/storage"
 	}
 
 	dc := &dockerConf{}
@@ -88,16 +101,21 @@ func loadconfig() (*config, error) {
 		}
 	}
 
+	sc := &storageConf{
+		Path: storagePath,
+	}
+
 	return &config{
 		gitConf: &gitConf{
 			User:     gitUser,
 			Password: gitPw,
 			Path:     gitPath,
 		},
-		serverPort: serverPort,
-		apiKeyRead: apiKeyRead,
-		apiKeyExec: apiKeyExec,
-		dockerConf: dc,
+		serverPort:  serverPort,
+		apiKeyRead:  apiKeyRead,
+		apiKeyExec:  apiKeyExec,
+		dockerConf:  dc,
+		storageConf: sc,
 	}, nil
 }
 

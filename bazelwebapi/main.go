@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -20,7 +23,7 @@ func main() {
 		c:           c,
 		start:       time.Now(),
 	}
-
+	go signalScanner()
 	go executor(s)
 
 	log.Println("WebAPI running on port ", s.c.serverPort)
@@ -50,4 +53,14 @@ func executor(s *server) {
 		}
 		time.Sleep(time.Second * 1)
 	}
+}
+
+func signalScanner(s *server) {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGQUIT, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+
+	_ = <-signals
+
+	s.prepareShutdown()
+	os.Exit(0)
 }

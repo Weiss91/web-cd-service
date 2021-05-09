@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"net/http"
+	"os"
 	"os/exec"
 	"sync"
 	"time"
@@ -64,4 +65,22 @@ func (s *server) executeBazel(task *task) error {
 	bufStdErr.Write(bufStdOut.Bytes())
 	task.Output = bufStdErr.String()
 	return nil
+}
+
+func (s *server) saveTasks() {
+	s.activeTasks
+	s.history
+	// TODO
+}
+
+func shutdownBazelServer() {
+	cmd := exec.Command("bazelisk", "shutdown")
+	cmd.Run()
+	cmd.Stdout = os.Stdout
+}
+
+func (s *server) prepareShutdown() {
+	go shutdownBazelServer()
+	s.saveTasks()
+	time.Sleep(time.Second * 10)
 }

@@ -63,6 +63,10 @@ func (ts *tasks) delete(id string) {
 	delete(ts.tasks, id)
 }
 
+func (ts *tasks) store(path string) {
+	// TODO
+}
+
 func parseTask(r *http.Request) (*task, error) {
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
