@@ -30,22 +30,22 @@ func executor(s *server) {
 	for {
 		t := s.queue.next()
 		if t != nil {
-			s.runningTask = t.id
-			t.state = RUNNING
-			t.updated = time.Now()
+			s.runningTask = t.Id
+			t.setState(RUNNING)
+			t.Updated = time.Now()
 			err := s.executeBazel(t)
 			if err != nil {
-				t.err = err.Error()
+				t.Err = err.Error()
 			}
 
-			t.state = DONE
+			t.setState(DONE)
 			now := time.Now()
-			t.updated = now
-			t.end = now
+			t.Updated = now
+			t.End = now
 			s.runningTask = ""
 
 			s.history.add(t)
-			s.activeTasks.delete(t.id)
+			s.activeTasks.delete(t.Id)
 		}
 		time.Sleep(time.Second * 1)
 	}
