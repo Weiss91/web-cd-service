@@ -18,6 +18,7 @@ func main() {
 		history:     newTasks(),
 		queue:       newQueue(),
 		c:           c,
+		start:       time.Now(),
 	}
 
 	go executor(s)

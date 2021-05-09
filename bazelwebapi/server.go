@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"os/exec"
 	"sync"
+	"time"
 )
 
 type server struct {
 	sync.Mutex
+	start       time.Time
 	c           *config
 	history     *tasks
 	activeTasks *tasks
