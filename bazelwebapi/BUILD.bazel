@@ -8,7 +8,7 @@ go_library(
     srcs = [
         "config.go",
         "git.go",
-        "handlers.go",
+        "healthHandler.go",
         "main.go",
         "middleware.go",
         "prio.go",
@@ -17,6 +17,7 @@ go_library(
         "server.go",
         "state.go",
         "task.go",
+        "taskHandler.go",
     ],
     importpath = "github.com/Weiss91/web-cd-service/bazelwebapi",
     visibility = ["//visibility:private"],
