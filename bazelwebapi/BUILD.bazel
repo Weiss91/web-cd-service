@@ -18,6 +18,7 @@ go_library(
         "state.go",
         "task.go",
         "taskHandler.go",
+        "util.go",
     ],
     importpath = "github.com/Weiss91/web-cd-service/bazelwebapi",
     visibility = ["//visibility:private"],

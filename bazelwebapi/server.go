@@ -2,13 +2,18 @@ package main
 
 import (
 	"bytes"
+	"log"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
+	"time"
 )
 
 type server struct {
 	sync.Mutex
+	start       time.Time
 	c           *config
 	history     *tasks
 	activeTasks *tasks
@@ -62,4 +67,43 @@ func (s *server) executeBazel(task *task) error {
 	bufStdErr.Write(bufStdOut.Bytes())
 	task.Output = bufStdErr.String()
 	return nil
+}
+
+func (s *server) saveActiveTasks() error {
+	path := filepath.Join(s.c.storageConf.Path, "active")
+	s.activeTasks.Lock()
+	defer s.activeTasks.Unlock()
+	err := saveTasks(path, s.activeTasks)
+	if err != nil {
+		return err
+	}
+	log.Println("Successfull saved active tasks")
+	return nil
+}
+
+func (s *server) loadActiveTasks() error {
+	path := filepath.Join(s.c.storageConf.Path, "active")
+	ts, err := loadTasks(path)
+	if err != nil {
+		return err
+	}
+
+	s.activeTasks.Lock()
+	defer s.activeTasks.Unlock()
+	s.activeTasks = ts
+
+	log.Println("Successfull loaded active tasks")
+	return nil
+}
+
+func shutdownBazelServer() {
+	cmd := exec.Command("bazelisk", "shutdown")
+	cmd.Run()
+	cmd.Stdout = os.Stdout
+}
+
+func (s *server) prepareShutdown() {
+	go shutdownBazelServer()
+	s.saveActiveTasks()
+	time.Sleep(time.Second * 10)
 }

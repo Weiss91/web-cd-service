@@ -29,6 +29,7 @@ func (s *server) ExecuteTask(w http.ResponseWriter, r *http.Request) {
 	t.setState(WAITING)
 
 	s.activeTasks.add(t)
+	s.saveActiveTasks()
 	s.queue.add(t)
 
 	w.Write([]byte(fmt.Sprintf("{\"taskID\": \"%s\"}", id)))
