@@ -112,6 +112,10 @@ func loadTasks(path string) (*tasks, error) {
 		return newTasks(), err
 	}
 
+	if len(b) == 0 {
+		return newTasks(), nil
+	}
+
 	ts := &tasks{}
 	err = json.Unmarshal(b, ts)
 	if err != nil {
