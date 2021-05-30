@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -32,25 +34,25 @@ type task struct {
 
 type tasks struct {
 	sync.Mutex
-	tasks map[string]*task
+	Tasks map[string]*task
 }
 
 func newTasks() *tasks {
 	return &tasks{
-		tasks: make(map[string]*task),
+		Tasks: make(map[string]*task),
 	}
 }
 
 func (ts *tasks) add(t *task) {
 	ts.Lock()
 	defer ts.Unlock()
-	ts.tasks[t.Id] = t
+	ts.Tasks[t.Id] = t
 }
 
 func (ts *tasks) find(id string) task {
 	ts.Lock()
 	defer ts.Unlock()
-	val, ok := ts.tasks[id]
+	val, ok := ts.Tasks[id]
 	if !ok {
 		return task{}
 	}
@@ -60,11 +62,62 @@ func (ts *tasks) find(id string) task {
 func (ts *tasks) delete(id string) {
 	ts.Lock()
 	defer ts.Unlock()
-	delete(ts.tasks, id)
+	delete(ts.Tasks, id)
 }
 
-func (ts *tasks) store(path string) {
-	// TODO
+func appendTask(path string, task *task) error {
+	ts, err := loadTasks(path)
+	if err != nil {
+		return err
+	}
+	ts.add(task)
+	err = saveTasks(path, ts)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func saveTasks(path string, ts *tasks) error {
+	path = path + ".json"
+	tempPath := path + "_temp.json"
+	b, err := json.Marshal(ts)
+	if err != nil {
+		return err
+	}
+	err = ioutil.WriteFile(tempPath, b, 0644)
+	if err != nil {
+		return err
+	}
+	err = copy(tempPath, path)
+	if err != nil {
+		return err
+	}
+	err = os.Remove(tempPath)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func loadTasks(path string) (*tasks, error) {
+	path = path + ".json"
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		log.Println("No Tasks found in file:", path)
+		return newTasks(), nil
+	}
+
+	b, err := ioutil.ReadFile(path)
+	if err != nil {
+		return newTasks(), err
+	}
+
+	ts := &tasks{}
+	err = json.Unmarshal(b, ts)
+	if err != nil {
+		return newTasks(), err
+	}
+	return ts, nil
 }
 
 func parseTask(r *http.Request) (*task, error) {

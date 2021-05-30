@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -67,10 +69,31 @@ func (s *server) executeBazel(task *task) error {
 	return nil
 }
 
-func (s *server) saveTasks() {
-	s.activeTasks
-	s.history
-	// TODO
+func (s *server) saveActiveTasks() error {
+	path := filepath.Join(s.c.storageConf.Path, "active")
+	s.activeTasks.Lock()
+	defer s.activeTasks.Unlock()
+	err := saveTasks(path, s.activeTasks)
+	if err != nil {
+		return err
+	}
+	log.Println("Successfull saved active tasks")
+	return nil
+}
+
+func (s *server) loadActiveTasks() error {
+	path := filepath.Join(s.c.storageConf.Path, "active")
+	ts, err := loadTasks(path)
+	if err != nil {
+		return err
+	}
+
+	s.activeTasks.Lock()
+	defer s.activeTasks.Unlock()
+	s.activeTasks = ts
+
+	log.Println("Successfull loaded active tasks")
+	return nil
 }
 
 func shutdownBazelServer() {
@@ -81,6 +104,6 @@ func shutdownBazelServer() {
 
 func (s *server) prepareShutdown() {
 	go shutdownBazelServer()
-	s.saveTasks()
+	s.saveActiveTasks()
 	time.Sleep(time.Second * 10)
 }
