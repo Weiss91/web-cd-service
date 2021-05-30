@@ -16,7 +16,7 @@ Currently there are following endpoints:
 	"Target": "bazelwebapi:push_image",
     "BazelCmd": "run",
     "Prio": "dev",
-    "Registry": "dev-image-registry",
+    "Registry": "dev-image-registry"
 }
 ```
 * GET (ReadAPIKey) /getstate/task/** --> ** is the taskID that is given by execute/task 
